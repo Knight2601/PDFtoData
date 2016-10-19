@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Convertor</title>
+
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css">
+    <script src="js/jquery-3.1.1.js"></script>
+
+    <!--
+   <script src="//cdnjs.cloudflare.com/ajax/libs/tether/1.3.7/js/tether.min.js"></script>
+   <script src="js/bootstrap.min.js"></script>
+   -->
+    <script src="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/js/toastr.min.js"></script>
+
+
+</head>
+<body>
+
+<iframe src="source/bmm 82.html" id="source1"
+        style="width:32vw; height:48vh; border:1px solid black; padding :0.1em;"></iframe>
+
+<iframe src="source/bmm 72.html" id="source2"
+        style="width:32vw; height:48vh; border:1px solid black; padding :0.1em;"></iframe>
+
+<iframe src="source/bmm_223.html" id="source3"
+        style="width:32vw; height:48vh; border:1px solid black; padding :0.1em;"></iframe>
+
+<div id="output" style="height:48vh; width:100vw; padding:0.2em; overflow-y:scroll;">
+
+</div>
+<script type="text/javascript">
+    var jq;
+    var jQcdn = "<script src='//code.jquery.com/jquery-3.1.1.slim.min.js'><\/script>";
+
+    var headerText = [70, 90];
+
+    var articleHeader = [55, 60];
+    var articleHeader2 = [46, 54];
+    var articleText = [38, 45];
+
+    var articles = [];
+    var pub = [{}];
+
+    String.prototype.paddingLeft = function (paddingValue) {
+        return String(paddingValue + this).slice(-paddingValue.length);
+    };
+
+    $(function () {
+        $.noConflict();
+        toastr.info('Loaded');
+        jQuery(document).ready(function ($) {
+            jq=$;
+            setTimeout(function () {
+                $('iframe').each(function(i,elem){
+                    toastr.info('IFrame ' + i);
+                    var a = runner($, elem);
+console.log("================",a,i);
+                });
+
+//                setTimeout(function () {
+//                    toastr.info('2nd section');
+//                    var b = runner($, '#sourcer2');
+//                }, 2000);
+            }, 1000);
+
+        });
+
+
+    });
+
+    function setPublication($, selector) {
+        pub.publication = "Brazilian Meat Monitor";
+        $($(selector).contents()[0]).find('div').each(
+                function (i, elem) {
+                    if ($(elem).text().indexOf("Issue N") > -1) {
+                        var f = $(elem).clone().children().remove().end().text();
+                        if(f.indexOf("Issue")>-1){
+                            f=f.substring(0,f.indexOf("Iss"));
+                        }
+                        console.log("-------------",f);
+                        var da = new Date( f);
+                        da.setHours(da.getHours()+1);
+                        pub.publishDate = da;
+                        $(elem).find("span").each(function (ii, span) {
+                            if ($(span).text().indexOf("Issue") > -1) {
+                                pub.publishIssue = $(span).text().trim();
+
+                            }
+                        });
+                        if(pub.publishIssue.indexOf("I")>1 || pub.publishIssue.indexOf("I")<0){
+                            var dd = $(elem).clone().children().remove().end().text();
+                            pub.publishIssue = dd.substring(dd.indexOf("I")).trim();
+                        }
+                    }
+                });
+        pub.copyrite = "© Informa plc " + pub.publishDate.getFullYear();
+    }
+
+    function runner($,selector) {
+        setPublication($,selector);
+        var skipHead = false;
+        try {
+            var article = {};
+            article.id = 1;
+            article.header = "";
+            article.articleBody = "";
+            article.articleHeader = "";
+            var minArticleLength=150; // characters
+            var maxHeaderLength = 130;
+            var bodySkip = false;
+            var items = {};
+            items.header = false; items.articleText = false; items.articleBody=false;
+            $($(selector).contents()[0]).find('div').each(
+                    function (i, elem) {
+                        var currentElementBody=0;
+                        if (skipHead) {
+                            // readAhead found continuation of title
+                            skipHead = false;
+                            console.log("Skipped");
+                            return;
+                        }
+                        var size = parseInt($(elem).css('font-size'));
+
+                        if (size >= headerText[0] && size <= headerText[1]) {
+                            var additionH = readAhead($, elem, headerText);
+                            article.header = $(elem).text() + additionH;
+
+                            $(elem).attr('style', 'border:3px solid blue;');
+                            bodySkip = false;
+                            if(currentElementBody == 0){
+                                currentElementBody = i;
+
+                            }
+                            items.header=true;
+                            if (additionH != "") skipHead = true;
+                        }
+
+                        if (size >= articleHeader[0] && size <= articleHeader[1] && !items.articleBody) {
+                            var additionh = readAhead($, elem, articleHeader);
+                            article.articleHeader += " " + $(elem).text() + additionh;
+
+                            $(elem).attr('style', 'border:3px solid black;');
+                            bodySkip = false;
+                            items.articleText=true;
+                            if (additionh != "") skipHead = true;
+                        }
+
+                        if (size >= articleHeader2[0] && size <= articleHeader2[1] && !items.articleBody) {
+
+                            article.articleHeader += " " + $(elem).text();
+
+                            $(elem).attr('style', 'border:3px solid black;');
+                            bodySkip = false;
+                            items.articleText=true;
+                        }
+
+                        if (size >= articleText[0] && size <= articleText[1]) {
+                            currentElementBody = i;
+                           // items.articleBody = true;
+                            if (!bodySkip) {
+                                bodySkip = readBody($, elem, article);
+
+
+                                if (bodySkip && article.header.length>10 && article.articleBody.length>minArticleLength) {
+                                    if(article.articleHeader.indexOf(".......")<0 && article.articleHeader.length<maxHeaderLength) {
+                                        var da = new Date(pub.publishDate);
+                                        da.setHours(new Date(pub.publishDate).getHours() + 1);
+                                        article.id = da.getFullYear() + (da.getMonth() + 1).toString().paddingLeft("00") + (article.id).toString().paddingLeft("000");
+                                        articles.push(article);
+
+                                      //  console.log("--", article.header, article.id, article.articleBody, article.articleHeader, articles.length);
+                                    }
+                                    article.id++;
+                                    var x = article.header; var id = article.id;
+
+                                    article={};
+                                    currentElementBody = 0;
+                                    article.id =id;
+                                    article.header=x;
+                                    article.articleBody = "";
+                                    article.articleHeader = "";
+                                }
+                                items.articleText=false; items.articleBody=false;
+                           }
+
+                        }
+
+                    });
+
+            renderArticles($, 'html');
+            articles=[];
+
+        } catch (e) {
+            toastr.warning(e.message);
+        }
+        return "ok";
+    }
+
+    function readBody($, elem, article) {
+        article.articleBody = $(elem).text();
+        $(elem).attr('style', 'border:8px dotted red;');
+        var sameSize = true;
+        var tries =0;
+
+        while (sameSize) {
+            if( tries>=3) {sameSize=false; return true;}
+            var next = $(elem).next();
+            var size = parseInt($(next).css("font-size"));
+      //      if (size==null){size=articleText[1]+1;}
+            if (size > articleText[0] && size < articleText[1]) {
+                article.articleBody += " " + $(next).text();
+                $(next).attr('style', 'border:3px dashed red;');
+                elem = next;
+            } else if (size>24 && size< articleText[0]&& $(next).text().length<4) { // date part like th st
+                article.articleBody += "<sup>" + $(next).text() + "</sup> ";
+                $(next).attr('style', 'border:3px dashed red;');
+                elem = next;
+            } else if (isNaN(size)) {
+                tries++;
+               // console.log("---Searchin---", tries, $(elem));
+                next = $(elem).parents("[id*=pf]").next().children().first().children().first().next().next();
+               // console.log($(next).next(), $(next));
+                $(next).attr('style', 'color:gray;');
+                elem = next;
+
+            } else {
+                sameSize = false;
+                return true;
+            }
+
+        }
+        return false;
+
+    }
+
+    var callee=1;
+
+    function renderArticles($, output) {
+        if(output=='html') {
+            if($('#output').children().length==0){
+                // first element creation
+
+                $('#output').append("<a name='top'></a>");
+
+            }
+
+            $('#output').append("<hr style='border:3px solid black;'/>");
+            $('#output').append("<a name='articles" + callee + "'></a><h3 style='width:100vw; text-align:center; background: gray; padding:.3em;'>" +
+                    pub.publication + " <b>" + pub.publishIssue +
+                    "</b> " + pub.publishDate.toLocaleDateString("en-GB") + " <a href='#top'>...back to top</a></h3><ul>");
+
+            for (var idx = 0; idx < articles.length; idx++) {
+                var xx = "<li> Header: " +
+                        idx.toString() + " <b>" + articles[idx].header +
+                        "</b><ul>";
+                if (articles[idx].articleHeader != "") {
+                    var fr ="<button onclick='findContent(\"#source" + callee + "\", \"" + articles[idx].articleHeader.trim() + "\")'>Click</button>";
+                    xx += "<li> Title: <i><b>" + articles[idx].articleHeader + "</b></i> " + fr + "</li>";
+                }
+                if (articles[idx].articleBody != "") {
+                    xx += "<li> Body: " + articles[idx].articleBody + "</li>";
+                }
+                xx += "<li> ID: " + articles[idx].id + "</li>";
+                xx += "<li> Date: " + pub.publishDate.toJSON() + "</li>";
+                xx += "<li> Copyright: " + pub.copyrite + "</li>";
+                xx += "<li> Publication: " + pub.publication + "</li>";
+
+                xx += "</ul></li>";
+
+                $('#output>ul').append(xx).append("</ul><p></p><p></p>");
+            }
+            $('#output>hr').prev().append("<a style='width:20vw;display:inline-block; padding:0.2em;' class='temp' href='#articles" + callee + "'>" + pub.publication + " " + pub.publishIssue + "</a> ");
+        }
+        callee++;
+    }
+
+    function findContent(destFrame, destSearch){
+        var iframe = jq(destFrame); // or some other selector to get the iframe
+        var pages = jq(destFrame).contents().find("#page-container>div"); //pages
+        var destElement = undefined;
+        var offset = undefined;
+        for (var i=0; i<pages.length; i++) {
+            jq(jq(pages)[i]).first().children().first().find("div").each(function(i,elem){
+                    if (jq(elem).text().indexOf(destSearch) > -1) {
+                        destElement = jq(elem);
+                        offset = destElement.offset();
+                        if (offset != undefined){
+                            offset.left -=20;
+                            offset.top -=20;
+                        }
+                        console.log("---- found", destElement);
+                    }
+            })
+
+        }
+        if(destElement != undefined && offset != undefined) {
+            jq('body', iframe.contents()).animate({
+                scrollTop: offset.top,
+                scrollLeft: offset.left
+            });
+            console.log("focus to ", destElement);
+        }
+        console.log("clicked ", destElement, destFrame, pages.length, " pages");
+    }
+
+    function readAhead($, elem, sizes) {
+        var retVal = "";
+        var ns = parseInt($(elem).next().css("font-size"));
+        if (ns > sizes[0] && ns < sizes[1]) {
+            retVal = $(elem).next().text();
+            $(elem).next().attr('style', 'border:3px dashed green;');
+        }
+        return retVal;
+    }
+</script>
+
+</body>
+</html>
